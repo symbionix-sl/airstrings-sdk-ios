@@ -13,8 +13,9 @@ import UIKit
 /// ```swift
 /// Text(strings["onboarding.welcome_title"])
 /// ```
+@MainActor
 @Observable
-public final class AirStrings: @unchecked Sendable {
+public final class AirStrings {
   
   // MARK: - Observed state (triggers view updates)
   
@@ -22,7 +23,7 @@ public final class AirStrings: @unchecked Sendable {
   var strings: [String: String] = [:]
   
   /// Current active BCP 47 locale.
-  public var currentLocale: String
+  public var currentLocale: String = "en"
   
   /// True after first bundle loaded (from cache or network).
   public private(set) var isReady: Bool = false
@@ -37,7 +38,7 @@ public final class AirStrings: @unchecked Sendable {
   @ObservationIgnored private let verifier: BundleVerifier
   @ObservationIgnored private let store: BundleStore
   @ObservationIgnored private var cachedETags: [String: String] = [:]
-  @ObservationIgnored private var foregroundObserver: (any NSObjectProtocol)?
+  @ObservationIgnored nonisolated(unsafe) private var foregroundObserver: (any NSObjectProtocol)?
   @ObservationIgnored private let logger = Logger(subsystem: "com.airstrings.sdk", category: "AirStrings")
   @ObservationIgnored private let isPlaceholder: Bool
   
@@ -163,18 +164,17 @@ public final class AirStrings: @unchecked Sendable {
   // MARK: - Placeholder
   
   /// Non-functional instance used as SwiftUI EnvironmentValues default.
-  static let placeholder: AirStrings = {
+  nonisolated static let placeholder: AirStrings = {
     let instance = AirStrings(placeholder: ())
     return instance
   }()
-  
-  private init(placeholder _: Void) {
+
+  nonisolated private init(placeholder _: Void) {
     self.isPlaceholder = true
     self.configuration = .placeholder
     self.fetcher = BundleFetcher(baseURL: URL(string: "https://localhost")!)
     self.verifier = BundleVerifier(publicKeys: [:])
     self.store = BundleStore()
-    self.currentLocale = "en"
   }
   
   // MARK: - Private

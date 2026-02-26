@@ -1,75 +1,73 @@
-import XCTest
+import Testing
+import Foundation
 @testable import AirStrings
 
-final class AirStringsTests: XCTestCase {
+@Suite("AirStrings")
+@MainActor
+struct AirStringsTests {
 
-    private func makeConfig() -> AirStringsConfiguration {
-        AirStringsConfiguration(
-            projectId: "proj_test12345678",
-            publicKeys: [:],
-            locale: .fixed("en"),
-            baseURL: URL(string: "https://localhost:9999")! // Will fail to connect — that's fine
-        )
-    }
+  private func makeConfig() -> AirStringsConfiguration {
+    AirStringsConfiguration(
+      projectId: "proj_test12345678",
+      publicKeys: [:],
+      locale: .fixed("en"),
+      baseURL: URL(string: "https://localhost:9999")!
+    )
+  }
 
-    func testSubscriptReturnsFallbackWhenNoStrings() {
-        let sut = AirStrings(configuration: makeConfig())
-        XCTAssertEqual(sut["nonexistent.key"], "nonexistent.key")
-        XCTAssertEqual(sut["onboarding.title"], "onboarding.title")
-    }
+  @Test func subscriptReturnsFallbackWhenNoStrings() {
+    let sut = AirStrings(configuration: makeConfig())
+    #expect(sut["nonexistent.key"] == "nonexistent.key")
+    #expect(sut["onboarding.title"] == "onboarding.title")
+  }
 
-    func testSubscriptReturnsValueWhenSet() {
-        let sut = AirStrings(configuration: makeConfig())
-        sut.strings = ["greeting": "Hello!", "farewell": "Goodbye!"]
+  @Test func subscriptReturnsValueWhenSet() {
+    let sut = AirStrings(configuration: makeConfig())
+    sut.strings = ["greeting": "Hello!", "farewell": "Goodbye!"]
+    #expect(sut["greeting"] == "Hello!")
+    #expect(sut["farewell"] == "Goodbye!")
+  }
 
-        XCTAssertEqual(sut["greeting"], "Hello!")
-        XCTAssertEqual(sut["farewell"], "Goodbye!")
-    }
+  @Test func subscriptFallbackForMissingKey() {
+    let sut = AirStrings(configuration: makeConfig())
+    sut.strings = ["existing": "Value"]
+    #expect(sut["existing"] == "Value")
+    #expect(sut["missing"] == "missing")
+  }
 
-    func testSubscriptFallbackForMissingKey() {
-        let sut = AirStrings(configuration: makeConfig())
-        sut.strings = ["existing": "Value"]
+  @Test func initialState() {
+    let sut = AirStrings(configuration: makeConfig())
+    #expect(sut.currentLocale == "en")
+    #expect(sut.revision == 0)
+    #expect(!sut.isReady)
+  }
 
-        XCTAssertEqual(sut["existing"], "Value")
-        XCTAssertEqual(sut["missing"], "missing")
-    }
+  @Test func fixedLocaleResolution() {
+    let config = AirStringsConfiguration(
+      projectId: "proj_test12345678",
+      publicKeys: [:],
+      locale: .fixed("it"),
+      baseURL: URL(string: "https://localhost:9999")!
+    )
+    let sut = AirStrings(configuration: config)
+    #expect(sut.currentLocale == "it")
+  }
 
-    func testInitialState() {
-        let sut = AirStrings(configuration: makeConfig())
+  @Test func placeholderReturnsFallback() {
+    let sut = AirStrings.placeholder
+    #expect(sut["any.key"] == "any.key")
+    #expect(sut.revision == 0)
+  }
 
-        XCTAssertEqual(sut.currentLocale, "en")
-        XCTAssertEqual(sut.revision, 0)
-        // isReady is false initially (no cache, no network)
-        XCTAssertFalse(sut.isReady)
-    }
+  @Test func initialRevisionIsZero() {
+    let sut = AirStrings(configuration: makeConfig())
+    #expect(sut.revision == 0)
+  }
 
-    func testFixedLocaleResolution() {
-        let config = AirStringsConfiguration(
-            projectId: "proj_test12345678",
-            publicKeys: [:],
-            locale: .fixed("it"),
-            baseURL: URL(string: "https://localhost:9999")!
-        )
-        let sut = AirStrings(configuration: config)
-        XCTAssertEqual(sut.currentLocale, "it")
-    }
-
-    func testPlaceholderReturnsFallback() {
-        let sut = AirStrings.placeholder
-        XCTAssertEqual(sut["any.key"], "any.key")
-        XCTAssertEqual(sut.revision, 0)
-    }
-
-    func testInitialRevisionIsZero() {
-        let sut = AirStrings(configuration: makeConfig())
-        XCTAssertEqual(sut.revision, 0)
-    }
-
-    func testStringsCanBeSetInternally() {
-        let sut = AirStrings(configuration: makeConfig())
-        // Internal var is accessible via @testable import
-        sut.strings = ["key": "value"]
-        XCTAssertEqual(sut.strings["key"], "value")
-        XCTAssertEqual(sut["key"], "value")
-    }
+  @Test func stringsCanBeSetInternally() {
+    let sut = AirStrings(configuration: makeConfig())
+    sut.strings = ["key": "value"]
+    #expect(sut.strings["key"] == "value")
+    #expect(sut["key"] == "value")
+  }
 }
