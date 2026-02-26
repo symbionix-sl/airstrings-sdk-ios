@@ -1,7 +1,57 @@
-.DS_Store
-/.build
-/Packages
+# Xcode
+*.xcodeproj
+*.xcworkspace
 xcuserdata/
 DerivedData/
-.swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+*.xcscmblueprint
+*.xccheckout
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+Package.pins
+*.xcodeproj
+
+# CocoaPods (not used, but exclude just in case)
+Pods/
+
+# Carthage (not used, but exclude just in case)
+Carthage/Build/
+
+# OS files
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+
+# IDE
+*.swp
+*.swo
+*~
+.idea/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+
+# Secrets
 .netrc
+*.key
+*.pem
+
+# Archives
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
