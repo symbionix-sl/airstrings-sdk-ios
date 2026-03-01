@@ -10,10 +10,15 @@ final class BundleFetcher: @unchecked Sendable {
   private let client: ApiClient
   
   init(baseURL: URL) {
+    #if DEBUG
+    let debug = true
+    #else
+    let debug = false
+    #endif
     let config = NetworkConfiguration(
       baseURL: baseURL,
       requestTimeout: 30,
-      debug: true
+      debug: debug
     )
     self.client = ApiClient(config: config)
   }
