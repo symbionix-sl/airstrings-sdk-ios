@@ -48,6 +48,18 @@ public final class AirStrings {
   /// Called when strings update mid-session. Receives locale and new revision.
   @ObservationIgnored public var onStringsUpdated: ((_ locale: String, _ revision: Int) -> Void)?
 
+  // MARK: - Shared instance
+
+  /// The shared instance, available after calling `configure(_:)`.
+  /// Accessing before configuration is a programmer error.
+  public private(set) static var shared: AirStrings!
+
+  /// Configures the shared instance. Must be called exactly once, typically in app launch.
+  public static func configure(_ configuration: AirStringsConfiguration) {
+    precondition(shared == nil, "AirStrings.configure(_:) must be called exactly once")
+    shared = AirStrings(configuration: configuration)
+  }
+
   // MARK: - Public API
 
   /// Returns the localized string for the given key, or the key itself as fallback.

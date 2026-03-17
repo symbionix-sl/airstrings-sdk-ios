@@ -22,10 +22,12 @@ Or in Xcode: **File > Add Package Dependencies** and enter the repository URL.
 
 ## Quick Start
 
+Configure once at app launch:
+
 ```swift
 import AirStrings
 
-let airStrings = AirStrings(configuration: .init(
+AirStrings.configure(.init(
     projectId: "proj_a1b2c3d4e5f6",
     publicKeys: [
         "key_prod_01": Data([/* your 32-byte Ed25519 public key */])
@@ -33,22 +35,31 @@ let airStrings = AirStrings(configuration: .init(
 ))
 ```
 
+Then use `AirStrings.shared` anywhere:
+
+```swift
+// ViewModel, service, UIKit controller — anywhere on MainActor
+let title = AirStrings.shared["onboarding.welcome_title"]
+```
+
 ### SwiftUI
 
-Inject once at the root, access anywhere via `@Environment`:
+Inject the shared instance at the root for `@Environment` access:
 
 ```swift
 @main
 struct MyApp: App {
-    @State private var airStrings = AirStrings(configuration: .init(
-        projectId: "proj_a1b2c3d4e5f6",
-        publicKeys: ["key_prod_01": publicKeyData]
-    ))
+    init() {
+        AirStrings.configure(.init(
+            projectId: "proj_a1b2c3d4e5f6",
+            publicKeys: ["key_prod_01": publicKeyData]
+        ))
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(\.airStrings, airStrings)
+                .environment(\.airStrings, .shared)
         }
     }
 }
@@ -58,6 +69,24 @@ struct ContentView: View {
 
     var body: some View {
         Text(strings["onboarding.welcome_title"])
+    }
+}
+```
+
+### ViewModels
+
+Access the shared instance directly — no injection needed:
+
+```swift
+@MainActor
+@Observable
+final class SettingsViewModel {
+    var title: String {
+        AirStrings.shared["settings.title"]
+    }
+
+    var itemCount: String {
+        AirStrings.shared.string("items.count", args: ["count": items.count])
     }
 }
 ```
@@ -83,7 +112,7 @@ The `subscript` always returns the raw value. Use `string(_:args:)` when you nee
 The SDK uses the device locale by default. Override with a fixed locale:
 
 ```swift
-AirStrings(configuration: .init(
+AirStrings.configure(.init(
     projectId: "proj_a1b2c3d4e5f6",
     publicKeys: ["key_prod_01": publicKeyData],
     locale: .fixed("fr")
@@ -93,7 +122,7 @@ AirStrings(configuration: .init(
 Switch locale at runtime:
 
 ```swift
-await airStrings.setLocale("es")
+await AirStrings.shared.setLocale("es")
 ```
 
 ## How It Works
@@ -112,6 +141,8 @@ await airStrings.setLocale("es")
 
 | Member | Type | Description |
 |--------|------|-------------|
+| `configure(_:)` | `static` | Configures the shared instance (call once at launch) |
+| `shared` | `static` | The shared instance, available after `configure(_:)` |
 | `subscript[key]` | `String` | Returns localized string or key name as fallback |
 | `string(_:args:)` | `String` | Formats ICU MessageFormat patterns with arguments |
 | `isReady` | `Bool` | `true` after first bundle loads (cache or network) |
@@ -153,13 +184,13 @@ AirStringsConfiguration(
 Configure multiple public keys to support rotation:
 
 ```swift
-AirStringsConfiguration(
+AirStrings.configure(.init(
     projectId: "proj_a1b2c3d4e5f6",
     publicKeys: [
         "key_prod_01": oldKeyData,
         "key_prod_02": newKeyData
     ]
-)
+))
 ```
 
 The SDK selects the correct key using the `key_id` in each bundle. Remove old keys after all clients have updated.
