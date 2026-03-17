@@ -125,6 +125,20 @@ Switch locale at runtime:
 await AirStrings.shared.setLocale("es")
 ```
 
+## Reactivity
+
+`AirStrings` is `@Observable`. SwiftUI views that read `strings`, `currentLocale`, `isReady`, or `revision` automatically re-render when those values change — no Combine, no manual subscriptions.
+
+This works transitively through ViewModels: if an `@Observable` ViewModel reads `AirStrings.shared["key"]` in a computed property, SwiftUI tracks that dependency and re-renders when the strings update.
+
+Strings update automatically on:
+- **Init** — loads cache immediately, then fetches from CDN in the background
+- **Foreground return** — re-fetches when the app comes back from background
+- **`setLocale(_:)`** — loads cached bundle for the new locale, then fetches latest
+- **`refresh()`** — manual trigger
+
+All paths are silent on failure — views keep showing the last known strings (or key names as fallback if no bundle has ever loaded).
+
 ## How It Works
 
 1. On init, loads cached bundle from disk (if available) and fetches the latest from CDN
