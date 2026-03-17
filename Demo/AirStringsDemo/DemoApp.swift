@@ -1,5 +1,5 @@
 import SwiftUI
-import AirStrings
+@testable import AirStrings
 
 @main
 struct DemoApp: App {

@@ -4,13 +4,25 @@ public struct AirStringsConfiguration: Sendable {
     public let projectId: String
     public let publicKeys: [String: Data]
     public let locale: AirStringsLocale
-    public let baseURL: URL
+    let baseURL: URL
 
     public init(
         projectId: String,
         publicKeys: [String: Data],
+        locale: AirStringsLocale = .system
+    ) {
+        self.projectId = projectId
+        self.publicKeys = publicKeys
+        self.locale = locale
+        self.baseURL = URL(string: "https://cdn.airstrings.com")!
+    }
+
+    /// Internal initializer for testing and local development.
+    init(
+        projectId: String,
+        publicKeys: [String: Data],
         locale: AirStringsLocale = .system,
-        baseURL: URL = URL(string: "https://cdn.airstrings.com")!
+        baseURL: URL
     ) {
         self.projectId = projectId
         self.publicKeys = publicKeys
