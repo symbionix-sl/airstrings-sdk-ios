@@ -6,6 +6,10 @@ import Foundation
 @Suite("BundleVerifier")
 struct BundleVerifierTests {
 
+  private func textEntry(_ value: String) -> StringEntry {
+    StringEntry(value: value, format: .text)
+  }
+
   private func makeSignedBundle(
     formatVersion: Int = 1,
     projectId: String = "proj_test12345678",
@@ -13,7 +17,7 @@ struct BundleVerifierTests {
     revision: Int = 1,
     createdAt: String = "2026-02-25T14:30:00Z",
     keyId: String = "key_test_01",
-    strings: [String: String] = ["hello": "Hello World"],
+    strings: [String: StringEntry] = ["hello": StringEntry(value: "Hello World", format: .text)],
     privateKey: Curve25519.Signing.PrivateKey
   ) throws -> StringBundle {
     let unsigned = StringBundle(
@@ -113,7 +117,7 @@ struct BundleVerifierTests {
       createdAt: "2026-02-25T14:30:00Z",
       keyId: "key_test_01",
       signature: "not-valid-base64url-!!@@##",
-      strings: ["hello": "Hello"]
+      strings: ["hello": textEntry("Hello")]
     )
 
     let privateKey = Curve25519.Signing.PrivateKey()
@@ -130,9 +134,9 @@ struct BundleVerifierTests {
     let privateKey = Curve25519.Signing.PrivateKey()
     let bundle = try makeSignedBundle(
       strings: [
-        "z.last": "Last",
-        "a.first": "First",
-        "m.middle": "Middle"
+        "z.last": textEntry("Last"),
+        "a.first": textEntry("First"),
+        "m.middle": textEntry("Middle")
       ],
       privateKey: privateKey
     )
@@ -147,7 +151,7 @@ struct BundleVerifierTests {
   @Test func tamperedStringsFailVerification() throws {
     let privateKey = Curve25519.Signing.PrivateKey()
     let original = try makeSignedBundle(
-      strings: ["key": "original"],
+      strings: ["key": textEntry("original")],
       privateKey: privateKey
     )
 
@@ -159,7 +163,7 @@ struct BundleVerifierTests {
       createdAt: original.createdAt,
       keyId: original.keyId,
       signature: original.signature,
-      strings: ["key": "tampered"]
+      strings: ["key": textEntry("tampered")]
     )
 
     let verifier = BundleVerifier(publicKeys: [
@@ -172,6 +176,51 @@ struct BundleVerifierTests {
     guard case .signatureVerificationFailed = error else {
       Issue.record("Expected signatureVerificationFailed, got \(String(describing: error))")
       return
+    }
+  }
+
+  @Test func signatureWithICUStrings() throws {
+    let privateKey = Curve25519.Signing.PrivateKey()
+    let bundle = try makeSignedBundle(
+      strings: [
+        "greeting": StringEntry(value: "Hello", format: .text),
+        "items": StringEntry(value: "{count, plural, one {# item} other {# items}}", format: .icu)
+      ],
+      privateKey: privateKey
+    )
+
+    let verifier = BundleVerifier(publicKeys: [
+      "key_test_01": privateKey.publicKey.rawRepresentation
+    ])
+
+    try verifier.verify(bundle)
+  }
+
+  @Test func tamperedFormatFieldFailsVerification() throws {
+    let privateKey = Curve25519.Signing.PrivateKey()
+    let original = try makeSignedBundle(
+      strings: ["key": StringEntry(value: "Hello", format: .text)],
+      privateKey: privateKey
+    )
+
+    // Tamper: change format from text to icu while keeping same signature
+    let tampered = StringBundle(
+      formatVersion: original.formatVersion,
+      projectId: original.projectId,
+      locale: original.locale,
+      revision: original.revision,
+      createdAt: original.createdAt,
+      keyId: original.keyId,
+      signature: original.signature,
+      strings: ["key": StringEntry(value: "Hello", format: .icu)]
+    )
+
+    let verifier = BundleVerifier(publicKeys: [
+      "key_test_01": privateKey.publicKey.rawRepresentation
+    ])
+
+    #expect(throws: AirStringsError.self) {
+      try verifier.verify(tampered)
     }
   }
 }

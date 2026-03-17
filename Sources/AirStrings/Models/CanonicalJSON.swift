@@ -26,7 +26,11 @@ enum CanonicalJSON {
         let sortedKeys = bundle.strings.keys.sorted()
         for (i, key) in sortedKeys.enumerated() {
             if i > 0 { json += "," }
-            json += escapeString(key) + ":" + escapeString(bundle.strings[key]!)
+            let entry = bundle.strings[key]!
+            json += escapeString(key) + ":{"
+            json += "\"format\":" + escapeString(entry.format.rawValue)
+            json += ",\"value\":" + escapeString(entry.value)
+            json += "}"
         }
 
         json += "}}"

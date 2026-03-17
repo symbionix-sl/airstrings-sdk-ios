@@ -93,6 +93,7 @@ create_string "app.title" '{"en":"AirStrings Demo","fr":"Démo AirStrings","es":
 create_string "settings.theme" '{"en":"Theme"}'
 create_string "settings.language" '{"en":"Language","fr":"Langue","es":"Idioma"}'
 create_string "onboarding.welcome" '{"en":"Welcome to AirStrings","fr":"Bienvenue sur AirStrings","es":"Bienvenido a AirStrings"}'
+create_string "items.count" '{"en":"{count, plural, one {# item} other {# items}}","fr":"{count, plural, one {# article} other {# articles}}","es":"{count, plural, one {# elemento} other {# elementos}}"}'
 
 echo ""
 
@@ -123,7 +124,7 @@ echo "════════════════════════�
 echo ""
 echo "  Project:  $PROJECT_ID"
 echo "  Locales:  en, fr, es"
-echo "  Strings:  greeting, farewell, app.title, settings.theme, settings.language, onboarding.welcome"
+echo "  Strings:  greeting, farewell, app.title, settings.theme, settings.language, onboarding.welcome, items.count (ICU)"
 echo ""
 echo "  MinIO bundles:"
 echo "    http://localhost:9000/airstrings-bundles/bundles/v1/$PROJECT_ID/en/bundle.json"

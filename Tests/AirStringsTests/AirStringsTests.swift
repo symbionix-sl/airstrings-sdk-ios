@@ -70,4 +70,72 @@ struct AirStringsTests {
     #expect(sut.strings["key"] == "value")
     #expect(sut["key"] == "value")
   }
+
+  // MARK: - ICU formatting via string(_:args:)
+
+  @Test func stringMethodReturnsKeyFallbackWhenNoStrings() {
+    let sut = AirStrings(configuration: makeConfig())
+    #expect(sut.string("missing.key", args: [:]) == "missing.key")
+  }
+
+  @Test func stringMethodReturnsTextValueIgnoringArgs() {
+    let sut = AirStrings(configuration: makeConfig())
+    sut.stringEntries = [
+      "greeting": StringEntry(value: "Hello!", format: .text)
+    ]
+    sut.strings = ["greeting": "Hello!"]
+    #expect(sut.string("greeting", args: ["name": "World"]) == "Hello!")
+  }
+
+  @Test func stringMethodFormatsICUPlural() {
+    let sut = AirStrings(configuration: makeConfig())
+    sut.stringEntries = [
+      "items.count": StringEntry(
+        value: "{count, plural, one {# item} other {# items}}",
+        format: .icu
+      )
+    ]
+    sut.strings = ["items.count": "{count, plural, one {# item} other {# items}}"]
+
+    #expect(sut.string("items.count", args: ["count": 1]) == "1 item")
+    #expect(sut.string("items.count", args: ["count": 5]) == "5 items")
+    #expect(sut.string("items.count", args: ["count": 0]) == "0 items")
+  }
+
+  @Test func stringMethodFormatsICUSelect() {
+    let sut = AirStrings(configuration: makeConfig())
+    sut.stringEntries = [
+      "pronoun": StringEntry(
+        value: "{gender, select, male {He} female {She} other {They}}",
+        format: .icu
+      )
+    ]
+    sut.strings = ["pronoun": "{gender, select, male {He} female {She} other {They}}"]
+
+    #expect(sut.string("pronoun", args: ["gender": "male"]) == "He")
+    #expect(sut.string("pronoun", args: ["gender": "female"]) == "She")
+    #expect(sut.string("pronoun", args: ["gender": "nonbinary"]) == "They")
+  }
+
+  @Test func stringMethodReturnsRawPatternOnFormattingFailure() {
+    let sut = AirStrings(configuration: makeConfig())
+    let pattern = "{missing_arg, plural, one {# item} other {# items}}"
+    sut.stringEntries = [
+      "broken": StringEntry(value: pattern, format: .icu)
+    ]
+    sut.strings = ["broken": pattern]
+
+    // Missing argument → returns raw pattern
+    #expect(sut.string("broken", args: ["wrong_arg": 1]) == pattern)
+  }
+
+  @Test func stringMethodSimpleSubstitution() {
+    let sut = AirStrings(configuration: makeConfig())
+    sut.stringEntries = [
+      "hello": StringEntry(value: "Hello, {name}!", format: .icu)
+    ]
+    sut.strings = ["hello": "Hello, {name}!"]
+
+    #expect(sut.string("hello", args: ["name": "Alice"]) == "Hello, Alice!")
+  }
 }
