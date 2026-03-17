@@ -81,12 +81,14 @@ Access the shared instance directly — no injection needed:
 @MainActor
 @Observable
 final class SettingsViewModel {
+    let strings = AirStrings.shared
+
     var title: String {
-        AirStrings.shared["settings.title"]
+        strings["settings.title"]
     }
 
     var itemCount: String {
-        AirStrings.shared.string("items.count", args: ["count": items.count])
+        strings.string("items.count", args: ["count": items.count])
     }
 }
 ```
