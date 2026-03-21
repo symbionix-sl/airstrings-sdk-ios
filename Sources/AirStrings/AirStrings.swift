@@ -41,6 +41,7 @@ public final class AirStrings {
   @ObservationIgnored private let verifier: BundleVerifier
   @ObservationIgnored private let store: BundleStore
   @ObservationIgnored private var cachedETags: [String: String] = [:]
+  @ObservationIgnored private var activeRefreshTask: Task<Void, Never>?
   @ObservationIgnored nonisolated(unsafe) private var foregroundObserver: (any NSObjectProtocol)?
   @ObservationIgnored private let logger = Logger(subsystem: "com.airstrings.sdk", category: "AirStrings")
   @ObservationIgnored private let isPlaceholder: Bool
@@ -133,9 +134,24 @@ public final class AirStrings {
 
   /// Fetches the latest bundle from CDN for the current locale.
   /// Uses ETag for conditional requests. Silent on network errors.
+  /// Coalesces concurrent calls — if a refresh is already in flight, callers await the existing one.
   public func refresh() async {
     guard !isPlaceholder else { return }
 
+    if let existing = activeRefreshTask {
+      await existing.value
+      return
+    }
+
+    let task = Task {
+      await self.performRefresh()
+    }
+    activeRefreshTask = task
+    await task.value
+    activeRefreshTask = nil
+  }
+
+  private func performRefresh() async {
     let locale = currentLocale
 
     do {
