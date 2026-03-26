@@ -36,8 +36,8 @@ public final class AirStrings {
   /// Internal format metadata, keyed by string ID. Not observed.
   @ObservationIgnored var stringEntries: [String: StringEntry] = [:]
 
-  @ObservationIgnored private let configuration: AirStringsConfiguration
-  @ObservationIgnored private let fetcher: BundleFetcher
+  @ObservationIgnored private var configuration: AirStringsConfiguration
+  @ObservationIgnored private var fetcher: BundleFetcher?
   @ObservationIgnored private let verifier: BundleVerifier
   @ObservationIgnored private let store: BundleStore
   @ObservationIgnored private var cachedETags: [String: String] = [:]
@@ -88,15 +88,20 @@ public final class AirStrings {
   public init(configuration: AirStringsConfiguration) {
     self.isPlaceholder = false
     self.configuration = configuration
-    self.fetcher = BundleFetcher(baseURL: configuration.baseURL)
     self.verifier = BundleVerifier(publicKeys: configuration.publicKeys)
     self.store = BundleStore()
     self.currentLocale = configuration.locale.resolved
+
+    // If baseURL already set (testing), create fetcher immediately
+    if let baseURL = configuration.baseURL {
+      self.fetcher = BundleFetcher(baseURL: baseURL)
+    }
 
     loadCachedBundle()
     observeForeground()
 
     Task { [weak self] in
+      await self?.ensureFetcher()
       await self?.refresh()
     }
   }
@@ -111,6 +116,8 @@ public final class AirStrings {
   /// then fetches the latest from CDN in the background.
   public func setLocale(_ bcp47: String) async {
     currentLocale = bcp47
+
+    await ensureFetcher()
 
     // Try loading cached bundle for new locale
     if let cached = store.load(projectId: configuration.projectId, environmentId: configuration.environmentId, locale: bcp47) {
@@ -152,6 +159,13 @@ public final class AirStrings {
   }
 
   private func performRefresh() async {
+    await ensureFetcher()
+
+    guard let fetcher else {
+      logger.error("Fetcher unavailable after bootstrap")
+      return
+    }
+
     let locale = currentLocale
 
     do {
@@ -220,6 +234,46 @@ public final class AirStrings {
     self.fetcher = BundleFetcher(baseURL: URL(string: "https://localhost")!)
     self.verifier = BundleVerifier(publicKeys: [])
     self.store = BundleStore()
+  }
+
+  // MARK: - Bootstrap
+
+  /// Discovers CDN base URL via bootstrap endpoint.
+  /// If baseURL is already set (testing), skips the network call.
+  /// Falls back to https://cdn.airstrings.com on any failure.
+  private func bootstrap() async -> URL {
+    if let baseURL = configuration.baseURL {
+      return baseURL
+    }
+
+    let bootstrapURL = configuration.apiBaseURL.appendingPathComponent("v1/sdk/bootstrap")
+    do {
+      let (data, _) = try await URLSession.shared.data(from: bootstrapURL)
+      let response = try JSONDecoder().decode(BootstrapResponse.self, from: data)
+      guard let url = URL(string: response.cdnBaseURL) else {
+        throw URLError(.badURL)
+      }
+      return url
+    } catch {
+      logger.warning("Bootstrap failed, falling back to default CDN URL: \(error)")
+      return URL(string: "https://cdn.airstrings.com")!
+    }
+  }
+
+  /// Ensures fetcher is initialized, running bootstrap if needed.
+  private func ensureFetcher() async {
+    guard fetcher == nil else { return }
+    let baseURL = await bootstrap()
+    configuration.baseURL = baseURL
+    fetcher = BundleFetcher(baseURL: baseURL)
+  }
+
+  private struct BootstrapResponse: Decodable {
+    let cdnBaseURL: String
+
+    enum CodingKeys: String, CodingKey {
+      case cdnBaseURL = "cdn_base_url"
+    }
   }
 
   // MARK: - Private
