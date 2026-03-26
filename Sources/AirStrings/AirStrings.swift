@@ -246,7 +246,10 @@ public final class AirStrings {
       return baseURL
     }
 
-    let bootstrapURL = configuration.apiBaseURL.appendingPathComponent("v1/sdk/bootstrap")
+    let base = configuration.apiBaseURL.absoluteString.hasSuffix("/")
+      ? configuration.apiBaseURL.absoluteString
+      : configuration.apiBaseURL.absoluteString + "/"
+    let bootstrapURL = URL(string: base + "v1/sdk/bootstrap")!
     do {
       let (data, _) = try await URLSession.shared.data(from: bootstrapURL)
       let response = try JSONDecoder().decode(BootstrapResponse.self, from: data)
