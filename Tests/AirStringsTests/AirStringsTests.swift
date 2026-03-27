@@ -133,6 +133,49 @@ struct AirStringsTests {
     #expect(sut.string("broken", args: ["wrong_arg": 1]) == pattern)
   }
 
+  // MARK: - Locale switch: previous strings retained
+
+  @Test func setLocaleKeepsPreviousStringsWhenNoCacheExists() async {
+    let sut = AirStrings(configuration: makeConfig())
+    sut.strings = ["title": "Hello", "subtitle": "World"]
+    sut.stringEntries = [
+      "title": StringEntry(value: "Hello", format: .text),
+      "subtitle": StringEntry(value: "World", format: .text),
+    ]
+
+    // Switch to a locale with no cached bundle — network will fail (localhost:9999)
+    await sut.setLocale("fr")
+
+    // Previous strings must still be accessible, not cleared to empty
+    #expect(sut["title"] == "Hello")
+    #expect(sut["subtitle"] == "World")
+    #expect(sut.strings.isEmpty == false)
+  }
+
+  @Test func setLocaleKeepsStringEntriesWhenNoCacheExists() async {
+    let sut = AirStrings(configuration: makeConfig())
+    sut.strings = ["greeting": "Hola"]
+    sut.stringEntries = [
+      "greeting": StringEntry(value: "Hola", format: .text),
+    ]
+
+    await sut.setLocale("de")
+
+    // string(_:args:) should still work with previous entries
+    #expect(sut.string("greeting", args: [:]) == "Hola")
+  }
+
+  @Test func setLocaleUpdatesCurrentLocaleImmediately() async {
+    let sut = AirStrings(configuration: makeConfig())
+    sut.strings = ["key": "value"]
+
+    await sut.setLocale("ja")
+
+    #expect(sut.currentLocale == "ja")
+    // And strings are still there
+    #expect(sut["key"] == "value")
+  }
+
   @Test func stringMethodSimpleSubstitution() {
     let sut = AirStrings(configuration: makeConfig())
     sut.stringEntries = [
