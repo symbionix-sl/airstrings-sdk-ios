@@ -129,12 +129,13 @@ public final class AirStrings {
         } catch {
           logger.error("Cached bundle verification failed for \(bcp47), clearing cache")
           store.delete(projectId: configuration.projectId, environmentId: configuration.environmentId, locale: bcp47)
-          clearBundle()
+          // Don't clearBundle() — keep previous strings visible until fresh fetch
         }
       }
-    } else {
-      clearBundle()
     }
+    // No cached bundle for new locale: keep previous strings visible
+    // until the network fetch completes. Stale translations are better
+    // than flashing raw keys.
 
     await refresh()
   }
