@@ -232,4 +232,4 @@ The SDK selects the correct key using the `key_id` in each bundle. Remove old ke
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
