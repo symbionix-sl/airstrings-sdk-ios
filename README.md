@@ -14,7 +14,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/symbionix-sl/airstrings-sdk-ios.git", from: "0.2.3")
+    .package(url: "https://github.com/symbionix-sl/airstrings-sdk-ios.git", from: "0.3.0")
 ]
 ```
 
@@ -131,6 +131,48 @@ Switch locale at runtime:
 await AirStrings.shared.setLocale("es")
 ```
 
+## Bundled fallback (offline-safe builds)
+
+Ship published, signed bundles inside your app so a cold start with no cache and no network serves real strings instead of key names. On startup and on `setLocale(_:)` the SDK seeds from the committed bundled fallback files: every seed runs the full Ed25519 verification pipeline (plus project ID and locale cross-checks), and the highest verified revision among cache and seed wins — ties prefer the cache, and the network refresh continues unchanged in the background.
+
+Two steps:
+
+1. Pull the published bundles into your repo:
+
+   ```sh
+   airstrings bundles pull
+   ```
+
+2. Commit the generated `airstrings/bundles/` seed directory and add it to your app target.
+
+**CRITICAL packaging note** — the `airstrings/bundles` subdirectory hierarchy must be preserved by the build system:
+
+- **Xcode targets:** add the committed `airstrings/` folder as a **folder reference** (blue folder, not a group)
+- **SPM targets:** declare `resources: [.copy("airstrings")]` — never `.process`, which flattens
+- **Bazel targets:** use structure-preserving resource rules (e.g. `apple_resource_group` with `structured_resources`)
+
+The SDK does not probe the bundle root — a flattened layout is treated as absent.
+
+Seeding is zero-config when the seed directory is present, and fully optional:
+
+```swift
+AirStrings.configure(.init(
+    organizationId: "org_a1b2c3d4e5f6",
+    projectId: "proj_a1b2c3d4e5f6",
+    environmentId: "env_a1b2c3d4e5f6",
+    publicKeys: ["BASE64_ENCODED_PUBLIC_KEY"],
+    seedBundle: .main,                      // source bundle to probe (override for app extensions, tests)
+    seedSubdirectory: "airstrings/bundles", // seed directory inside the bundle
+    isSeedingEnabled: true                  // set false to disable seeding entirely
+))
+```
+
+A missing seed directory or locale file is a silent no-op. A tampered, mismatched, or otherwise invalid seed file is a hard error: it is never applied, never cached, and is logged at error level — the SDK then continues with cache, network, or key-name fallback as usual.
+
+A fresh install serves the committed revision until the first successful fetch, so run `airstrings bundles pull` in CI or as a pre-release step to keep seeds current.
+
+Full specification: [bundled fallback contract](https://github.com/symbionix-sl/airstrings/blob/main/docs/contracts/bundled-fallback.md) (`docs/contracts/bundled-fallback.md` in the AirStrings platform repo).
+
 ## Reactivity
 
 `AirStrings` is `@Observable`. SwiftUI views that read `strings`, `currentLocale`, `isReady`, or `revision` automatically re-render when those values change — no Combine, no manual subscriptions.
@@ -147,13 +189,13 @@ All paths are silent on failure — views keep showing the last known strings (o
 
 ## How It Works
 
-1. On init, loads cached bundle from disk (if available) and fetches the latest from CDN
+1. On init, gathers local candidates — the cached bundle and the bundled fallback seed (if present) — verifies each, applies the highest revision, and fetches the latest from CDN
 2. Every bundle is Ed25519-signed. Verification is mandatory — invalid signatures are a hard error
-3. Verified bundles are cached to `Library/Caches/AirStrings/` for offline use
+3. Verified bundles are cached to `Library/Caches/AirStrings/` for offline use; a winning seed is persisted through the same cache path
 4. Cached bundles are re-verified on every load (defense in depth)
 5. Auto-refreshes when the app returns to foreground
 6. Uses `ETag` / `If-None-Match` to avoid re-downloading unchanged bundles
-7. If no bundle is available (no cache + no network), string keys are returned as fallback
+7. If no bundle is available (no cache + no seed + no network), string keys are returned as fallback
 
 ## API
 
@@ -181,7 +223,10 @@ AirStringsConfiguration(
     environmentId: String,         // Your AirStrings environment ID
     publicKeys: [String],          // base64-encoded Ed25519 public keys
     locale: AirStringsLocale,      // .system (default) or .fixed("en-US")
-    apiBaseURL: URL                // defaults to https://api.airstrings.com
+    apiBaseURL: URL,               // defaults to https://api.airstrings.com
+    seedBundle: Bundle,            // bundle probed for bundled fallback, defaults to .main
+    seedSubdirectory: String,      // seed directory, defaults to "airstrings/bundles"
+    isSeedingEnabled: Bool         // defaults to true
 )
 ```
 
@@ -202,6 +247,8 @@ AirStringsConfiguration(
 | `.invalidSignatureEncoding` | Signature isn't valid base64url or isn't 64 bytes |
 | `.invalidPublicKeyEncoding(String)` | Public key isn't valid base64 |
 | `.bundleDecodingFailed(String)` | Bundle JSON couldn't be parsed |
+| `.seedProjectMismatch(expected:found:)` | Seed bundle's `project_id` doesn't match your configuration |
+| `.seedLocaleMismatch(expected:found:)` | Seed file contains a bundle for a different locale than its file name |
 
 ## Key Rotation
 
@@ -226,7 +273,8 @@ The SDK selects the correct key using the `key_id` in each bundle. Remove old ke
 - Every bundle is Ed25519-signed. There is no unsigned delivery path
 - Signature covers all metadata (project_id, locale, revision, format_version, created_at) to prevent substitution and downgrade attacks
 - Cached bundles are re-verified on every load
-- Anti-downgrade protection: newer revisions are never replaced by older ones
+- Bundled fallback seeds are untrusted input: each seed runs the full verification pipeline plus `project_id` and locale cross-checks before use
+- Anti-downgrade protection: newer revisions are never replaced by older ones, whether they come from cache, seed, or network
 - Public keys are provided at init — never hardcoded, logged, or embedded by the SDK
 - Uses Apple CryptoKit — no custom cryptography
 

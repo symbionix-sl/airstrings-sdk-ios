@@ -86,11 +86,15 @@ public final class AirStrings {
   }
 
   /// Creates a new AirStrings instance and immediately loads cached strings + fetches fresh ones.
-  public init(configuration: AirStringsConfiguration) {
+  public convenience init(configuration: AirStringsConfiguration) {
+    self.init(configuration: configuration, store: BundleStore())
+  }
+
+  init(configuration: AirStringsConfiguration, store: BundleStore) {
     self.isPlaceholder = false
     self.configuration = configuration
     self.verifier = BundleVerifier(publicKeys: configuration.publicKeys)
-    self.store = BundleStore()
+    self.store = store
     self.currentLocale = configuration.locale.resolved
 
     // If baseURL already set (testing), create fetcher immediately
@@ -98,7 +102,7 @@ public final class AirStrings {
       self.fetcher = BundleFetcher(baseURL: baseURL)
     }
 
-    loadCachedBundle()
+    loadLocalCandidates(for: currentLocale)
     observeForeground()
 
     Task { [weak self] in
@@ -120,23 +124,7 @@ public final class AirStrings {
 
     await ensureFetcher()
 
-    // Try loading cached bundle for new locale
-    if let cached = store.load(projectId: configuration.projectId, environmentId: configuration.environmentId, locale: bcp47) {
-      if let bundle = decodeBundle(from: cached.data) {
-        do {
-          try verifier.verify(bundle)
-          applyBundle(bundle)
-          cachedETags[bcp47] = cached.etag
-        } catch {
-          logger.error("Cached bundle verification failed for \(bcp47), clearing cache")
-          store.delete(projectId: configuration.projectId, environmentId: configuration.environmentId, locale: bcp47)
-          // Don't clearBundle() — keep previous strings visible until fresh fetch
-        }
-      }
-    }
-    // No cached bundle for new locale: keep previous strings visible
-    // until the network fetch completes. Stale translations are better
-    // than flashing raw keys.
+    loadLocalCandidates(for: bcp47)
 
     // Bypass refresh coalescing — if a refresh for the previous locale is
     // in flight, awaiting it via refresh() would return without ever
@@ -295,24 +283,73 @@ public final class AirStrings {
     cachedRevisions[bundle.locale] = bundle.revision
   }
 
-  private func loadCachedBundle() {
-    guard let cached = store.load(projectId: configuration.projectId, environmentId: configuration.environmentId, locale: currentLocale) else {
-      return
+  private func loadLocalCandidates(for locale: String) {
+    var cachedCandidate: (bundle: StringBundle, etag: String?)?
+    if let cached = store.load(projectId: configuration.projectId, environmentId: configuration.environmentId, locale: locale) {
+      if let bundle = decodeBundle(from: cached.data) {
+        do {
+          try verifier.verify(bundle)
+          cachedCandidate = (bundle, cached.etag)
+        } catch {
+          logger.error("Cached bundle verification failed for \(locale), clearing cache")
+          store.delete(projectId: configuration.projectId, environmentId: configuration.environmentId, locale: locale)
+        }
+      } else {
+        store.delete(projectId: configuration.projectId, environmentId: configuration.environmentId, locale: locale)
+      }
     }
 
-    guard let bundle = decodeBundle(from: cached.data) else {
-      store.delete(projectId: configuration.projectId, environmentId: configuration.environmentId, locale: currentLocale)
-      return
+    let seedCandidate = loadSeedCandidate(for: locale)
+    let highestKnownRevision = max(cachedCandidate?.bundle.revision ?? Int.min, cachedRevisions[locale] ?? Int.min)
+
+    if let seedCandidate, seedCandidate.bundle.revision > highestKnownRevision {
+      store.save(seedCandidate.data, projectId: configuration.projectId, environmentId: configuration.environmentId, locale: locale, etag: nil)
+      cachedETags[locale] = nil
+      applyBundle(seedCandidate.bundle)
+      isReady = true
+    } else if let cachedCandidate {
+      applyBundle(cachedCandidate.bundle)
+      cachedETags[locale] = cachedCandidate.etag
+      isReady = true
+    }
+  }
+
+  private func loadSeedCandidate(for locale: String) -> (bundle: StringBundle, data: Data)? {
+    guard configuration.isSeedingEnabled else { return nil }
+
+    guard let url = configuration.seedBundle.url(
+      forResource: locale,
+      withExtension: "json",
+      subdirectory: configuration.seedSubdirectory
+    ) else {
+      return nil
+    }
+
+    let data: Data
+    do {
+      data = try Data(contentsOf: url)
+    } catch {
+      logger.error("Seed bundle rejected for \(locale): unreadable resource: \(error)")
+      return nil
+    }
+
+    guard let bundle = decodeBundle(from: data) else {
+      logger.error("Seed bundle rejected for \(locale): decoding failed")
+      return nil
     }
 
     do {
       try verifier.verify(bundle)
-      applyBundle(bundle)
-      isReady = true
-      cachedETags[currentLocale] = cached.etag
+      guard bundle.projectId == configuration.projectId else {
+        throw AirStringsError.seedProjectMismatch(expected: configuration.projectId, found: bundle.projectId)
+      }
+      guard bundle.locale == locale else {
+        throw AirStringsError.seedLocaleMismatch(expected: locale, found: bundle.locale)
+      }
+      return (bundle, data)
     } catch {
-      logger.error("Cached bundle verification failed, clearing cache")
-      store.delete(projectId: configuration.projectId, environmentId: configuration.environmentId, locale: currentLocale)
+      logger.error("Seed bundle rejected for \(locale): \(error)")
+      return nil
     }
   }
 

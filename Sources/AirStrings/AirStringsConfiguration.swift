@@ -7,6 +7,9 @@ public struct AirStringsConfiguration: Sendable {
   public let publicKeys: [String]
   public let locale: AirStringsLocale
   public let apiBaseURL: URL
+  public let seedBundle: Bundle
+  public let seedSubdirectory: String
+  public let isSeedingEnabled: Bool
   var baseURL: URL?
 
   public init(
@@ -15,7 +18,10 @@ public struct AirStringsConfiguration: Sendable {
     environmentId: String,
     publicKeys: [String],
     locale: AirStringsLocale = .system,
-    apiBaseURL: URL = URL(string: "https://api.airstrings.com")!
+    apiBaseURL: URL = URL(string: "https://api.airstrings.com")!,
+    seedBundle: Bundle = .main,
+    seedSubdirectory: String = "airstrings/bundles",
+    isSeedingEnabled: Bool = true
   ) {
     self.organizationId = organizationId
     self.projectId = projectId
@@ -23,6 +29,9 @@ public struct AirStringsConfiguration: Sendable {
     self.publicKeys = publicKeys
     self.locale = locale
     self.apiBaseURL = apiBaseURL
+    self.seedBundle = seedBundle
+    self.seedSubdirectory = seedSubdirectory
+    self.isSeedingEnabled = isSeedingEnabled
     self.baseURL = nil
   }
 
@@ -33,7 +42,10 @@ public struct AirStringsConfiguration: Sendable {
     environmentId: String,
     publicKeys: [String],
     locale: AirStringsLocale = .system,
-    baseURL: URL
+    baseURL: URL,
+    seedBundle: Bundle = .main,
+    seedSubdirectory: String = "airstrings/bundles",
+    isSeedingEnabled: Bool = true
   ) {
     self.organizationId = organizationId
     self.projectId = projectId
@@ -41,6 +53,9 @@ public struct AirStringsConfiguration: Sendable {
     self.publicKeys = publicKeys
     self.locale = locale
     self.apiBaseURL = baseURL
+    self.seedBundle = seedBundle
+    self.seedSubdirectory = seedSubdirectory
+    self.isSeedingEnabled = isSeedingEnabled
     self.baseURL = baseURL
   }
 
