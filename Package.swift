@@ -12,7 +12,7 @@ let package = Package(
     .library(name: "AirStrings", targets: ["AirStrings"])
   ],
   dependencies: [
-    .package(url: "https://github.com/vetrek/SmartNet.git", from: "2.0.1")
+    .package(url: "https://github.com/vetrek/SmartNet.git", from: "2.2.0")
   ],
   targets: [
     .target(
