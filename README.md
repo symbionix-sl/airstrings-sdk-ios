@@ -151,7 +151,7 @@ Two steps:
 **CRITICAL packaging note** — the `airstrings/bundles` subdirectory hierarchy must be preserved by the build system:
 
 - **Xcode targets:** add the committed `airstrings/` folder as a **folder reference** (blue folder, not a group)
-- **SPM targets:** declare `resources: [.copy("airstrings")]` — never `.process`, which flattens
+- **SPM targets:** declare `resources: [.copy("airstrings")]` — never `.process`, which flattens. If the resource is declared in a library or feature target rather than the app target, it lands in that target's `Bundle.module`, not `.main`: pass `seedBundle: .module` (from code inside that module) in the configuration
 - **Bazel targets:** use structure-preserving resource rules (e.g. `apple_resource_group` with `structured_resources`)
 
 The SDK does not probe the bundle root — a flattened layout is treated as absent.
@@ -164,7 +164,7 @@ let airStrings = AirStrings(configuration: .init(
     projectId: "proj_a1b2c3d4e5f6",
     environmentId: "env_a1b2c3d4e5f6",
     publicKeys: ["BASE64_ENCODED_PUBLIC_KEY"],
-    seedBundle: .main,                      // source bundle to probe (override for app extensions, tests)
+    seedBundle: .main,                      // source bundle to probe (override for app extensions, tests, SPM library targets)
     seedSubdirectory: "airstrings/bundles", // seed directory inside the bundle
     isSeedingEnabled: true                  // set false to disable seeding entirely
 ))
