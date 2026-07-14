@@ -134,6 +134,32 @@ Switch locale at runtime:
 await airStrings.setLocale("es")
 ```
 
+## String Variants (experiments)
+
+Run experiments on your strings. Set a stable per-user assignment ID and the SDK selects a deterministic variant — the same assignment ID always resolves to the same variant. Set `onExposure` to forward exposures to your own analytics; the SDK ships no telemetry of its own.
+
+```swift
+airStrings.setAssignmentId(currentUser.id)
+
+airStrings.onExposure = { event in
+    analytics.track("string_exposure", properties: [
+        "key": event.key,
+        "experiment_id": event.experimentId,
+        "variant": event.variant,
+        "locale": event.locale,
+        "assignment_id": event.assignmentId
+    ])
+}
+```
+
+Reading strings is unchanged — `airStrings["key"]` returns the assigned variant, and the callback fires when a variant value is served:
+
+```swift
+let title = airStrings["onboarding.welcome_title"]
+```
+
+Experiment assignments are Ed25519-verified like every bundle. A failed or absent experiment soft-fails to base values — it never blocks strings and never serves an unverified variant. Pass `nil` to `setAssignmentId(_:)` to clear the assignment and serve base values.
+
 ## Bundled fallback (offline-safe builds)
 
 Ship published, signed bundles inside your app so a cold start with no cache and no network serves real strings instead of key names. On startup and on `setLocale(_:)` the SDK seeds from the committed bundled fallback files: every seed runs the full Ed25519 verification pipeline (plus project ID and locale cross-checks), and the highest verified revision among cache and seed wins — ties prefer the cache, and the network refresh continues unchanged in the background.

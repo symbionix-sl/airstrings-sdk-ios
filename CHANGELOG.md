@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-07-14
+
+### Added
+
+- String Variants (experiments) support. Assign a stable variant per user and forward exposure events to your own analytics — additive and opt-in; existing integrations compile and run unchanged.
+- `AirStrings.setAssignmentId(_ id: String?)` — sets the stable per-user assignment identifier used for variant selection. Selection is stateless and deterministic: the same assignment ID and experiment always resolve to the same variant. Pass `nil` to clear the assignment and serve base values.
+- `AirStrings.onExposure: ((ExposureEvent) -> Void)?` — callback fired when a variant value is served, so the app can forward exposures to its own analytics pipeline. The SDK ships no telemetry of its own.
+- `ExposureEvent` — value type describing a served variant: `key`, `experimentId`, `variant`, `locale`, and `assignmentId` (all `String`).
+- Signed experiments verification: experiment assignments run the same Ed25519 verification pipeline as string bundles and soft-fail to base values when verification does not pass — a failed or absent experiment never blocks strings and never serves an unverified variant.
+
 ## [1.0.0] - 2026-07-13
 
 First stable release. The public API is now frozen under Semantic Versioning: no breaking change ships without a major (2.0.0) bump. See the SDK stability and deprecation policy in `docs/contracts/sdk-requirements.md`.
