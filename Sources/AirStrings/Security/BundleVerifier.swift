@@ -36,4 +36,21 @@ struct BundleVerifier: Sendable {
       throw AirStringsError.unsupportedFormatVersion(bundle.formatVersion)
     }
   }
+
+  func verifyExperiments(_ bundle: StringBundle) -> Bool {
+    guard publicKeys.contains(bundle.keyId),
+        let keyData = Data(base64Encoded: bundle.keyId),
+        let publicKey = try? Curve25519.Signing.PublicKey(rawRepresentation: keyData) else {
+      return false
+    }
+
+    guard let signature = bundle.experimentsSignature,
+        let signatureBytes = Base64URL.decode(signature),
+        signatureBytes.count == 64 else {
+      return false
+    }
+
+    let canonicalBytes = CanonicalJSON.experimentsSignedContent(from: bundle)
+    return publicKey.isValidSignature(signatureBytes, for: canonicalBytes)
+  }
 }

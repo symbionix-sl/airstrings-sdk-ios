@@ -37,6 +37,46 @@ enum CanonicalJSON {
     return Data(json.utf8)
   }
 
+  static func experimentsSignedContent(from bundle: StringBundle) -> Data {
+    var json = "{"
+    json += "\"format_version\":" + String(bundle.formatVersion)
+    json += ",\"project_id\":" + escapeString(bundle.projectId)
+    json += ",\"locale\":" + escapeString(bundle.locale)
+    json += ",\"revision\":" + String(bundle.revision)
+    json += ",\"created_at\":" + escapeString(bundle.createdAt)
+    json += ",\"experiments\":{"
+
+    let experimentKeys = bundle.strings.keys
+      .filter { bundle.strings[$0]?.experiment != nil }
+      .sorted()
+    for (i, key) in experimentKeys.enumerated() {
+      if i > 0 { json += "," }
+      let experiment = bundle.strings[key]!.experiment!
+      json += escapeString(key) + ":{"
+
+      json += "\"allocation\":{"
+      for (j, name) in experiment.allocation.keys.sorted().enumerated() {
+        if j > 0 { json += "," }
+        json += escapeString(name) + ":" + String(experiment.allocation[name]!)
+      }
+      json += "}"
+
+      json += ",\"id\":" + escapeString(experiment.id)
+
+      json += ",\"variants\":{"
+      for (j, name) in experiment.variants.keys.sorted().enumerated() {
+        if j > 0 { json += "," }
+        json += escapeString(name) + ":" + escapeString(experiment.variants[name]!)
+      }
+      json += "}"
+
+      json += "}"
+    }
+
+    json += "}}"
+    return Data(json.utf8)
+  }
+
   private static func escapeString(_ s: String) -> String {
     var result = "\""
     for scalar in s.unicodeScalars {

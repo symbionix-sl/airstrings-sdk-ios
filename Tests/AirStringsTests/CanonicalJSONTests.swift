@@ -174,6 +174,35 @@ struct CanonicalJSONTests {
     #expect(result.contains("\"hello\":{\"format\":\"text\",\"value\":\"Hello\"}"))
   }
 
+  @Test func experimentsContractExample() {
+    let bundle = StringBundle(
+      formatVersion: 1,
+      projectId: "proj_x",
+      locale: "en-US",
+      revision: 42,
+      createdAt: "2026-07-14T10:00:00Z",
+      keyId: "key_prod_01",
+      signature: "dummy",
+      strings: [
+        "checkout.cta": StringEntry(
+          value: "Continue",
+          format: .text,
+          experiment: Experiment(
+            id: "exp_a1b2c3d4e5f6",
+            allocation: ["control": 50, "variant_a": 50],
+            variants: ["variant_a": "Continue"]
+          )
+        )
+      ]
+    )
+
+    let resultString = String(decoding: CanonicalJSON.experimentsSignedContent(from: bundle), as: UTF8.self)
+
+    let expected = #"{"format_version":1,"project_id":"proj_x","locale":"en-US","revision":42,"created_at":"2026-07-14T10:00:00Z","experiments":{"checkout.cta":{"allocation":{"control":50,"variant_a":50},"id":"exp_a1b2c3d4e5f6","variants":{"variant_a":"Continue"}}}}"#
+
+    #expect(resultString == expected)
+  }
+
   @Test func icuFormatInCanonicalJSON() {
     let bundle = StringBundle(
       formatVersion: 1,
