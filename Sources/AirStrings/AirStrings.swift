@@ -42,6 +42,11 @@ public final class AirStrings {
   @ObservationIgnored private let store: BundleStore
   @ObservationIgnored private var cachedETags: [String: String] = [:]
   @ObservationIgnored private var cachedRevisions: [String: Int] = [:]
+  @ObservationIgnored private var assignmentId: String?
+  @ObservationIgnored private var experimentsTrusted: Bool = false
+  @ObservationIgnored private var variantOverrides: [String: String] = [:]
+  @ObservationIgnored private var pendingExposures: [String: ExposureEvent] = [:]
+  @ObservationIgnored private var firedExposures: Set<String> = []
   @ObservationIgnored private var activeRefreshTask: Task<Void, Never>?
   @ObservationIgnored nonisolated(unsafe) private var foregroundObserver: (any NSObjectProtocol)?
   @ObservationIgnored private let logger = Logger(subsystem: "com.airstrings.sdk", category: "AirStrings")
@@ -50,11 +55,15 @@ public final class AirStrings {
   /// Called when strings update mid-session. Receives locale and new revision.
   @ObservationIgnored public var onStringsUpdated: ((_ locale: String, _ revision: Int) -> Void)?
 
+  /// Called on read when an experiment variant is first exposed. Delivered asynchronously on the main actor.
+  @ObservationIgnored public var onExposure: ((ExposureEvent) -> Void)?
+
   // MARK: - Public API
 
   /// Returns the localized string for the given key, or the key itself as fallback.
   public subscript(_ key: String) -> String {
-    strings[key] ?? key
+    fireExposures(for: key)
+    return strings[key] ?? key
   }
 
   /// Returns a formatted string for the given key.
@@ -64,12 +73,28 @@ public final class AirStrings {
   /// - On formatting failure or missing key: returns the raw value or the key name as fallback.
   public func string(_ key: String, args: [String: Any]) -> String {
     guard let entry = stringEntries[key] else { return key }
+    fireExposures(for: key)
+    let value = variantOverrides[key] ?? entry.value
 
     switch entry.format {
     case .text:
-      return entry.value
+      return value
     case .icu:
-      return ICUMessageFormat.format(entry.value, locale: currentLocale, args: args)
+      return ICUMessageFormat.format(value, locale: currentLocale, args: args)
+    }
+  }
+
+  /// Sets or clears the experiment assignment id and recomputes variant selection
+  /// against the current verified bundle. Passing nil clears all overrides and pending exposures.
+  public func setAssignmentId(_ id: String?) {
+    let previousOverrides = variantOverrides
+    assignmentId = id
+    if id == nil {
+      pendingExposures = [:]
+    }
+    recomputeVariants()
+    if variantOverrides != previousOverrides {
+      onStringsUpdated?(currentLocale, revision)
     }
   }
 
@@ -186,7 +211,7 @@ public final class AirStrings {
 
         // Only apply if locale hasn't changed during fetch
         if locale == currentLocale {
-          applyBundle(bundle)
+          applyBundle(bundle, experimentsTrusted: computeExperimentsTrust(bundle))
           isReady = true
           onStringsUpdated?(locale, bundle.revision)
         }
@@ -264,11 +289,65 @@ public final class AirStrings {
 
   // MARK: - Private
 
-  private func applyBundle(_ bundle: StringBundle) {
+  private func applyBundle(_ bundle: StringBundle, experimentsTrusted: Bool) {
+    self.experimentsTrusted = experimentsTrusted
     stringEntries = bundle.strings
-    strings = bundle.strings.mapValues { $0.value }
     revision = bundle.revision
     cachedRevisions[bundle.locale] = bundle.revision
+    recomputeVariants()
+  }
+
+  private func recomputeVariants() {
+    variantOverrides = [:]
+    if experimentsTrusted, let assignmentId {
+      for (key, entry) in stringEntries where entry.experiment != nil {
+        switch ExperimentSelection.select(entry: entry, assignmentId: assignmentId) {
+        case .base:
+          continue
+        case .control(let experimentId):
+          variantOverrides[key] = entry.value
+          stageExposure(key: key, experimentId: experimentId, variant: "control", assignmentId: assignmentId)
+        case .variant(let experimentId, let name, let value):
+          variantOverrides[key] = value
+          stageExposure(key: key, experimentId: experimentId, variant: name, assignmentId: assignmentId)
+        }
+      }
+    }
+
+    var flattened: [String: String] = [:]
+    flattened.reserveCapacity(stringEntries.count)
+    for (key, entry) in stringEntries {
+      flattened[key] = variantOverrides[key] ?? entry.value
+    }
+    strings = flattened
+  }
+
+  private func stageExposure(key: String, experimentId: String, variant: String, assignmentId: String) {
+    let dedupeKey = key + "\n" + experimentId + "\n" + variant + "\n" + assignmentId
+    guard !firedExposures.contains(dedupeKey) else { return }
+    pendingExposures[dedupeKey] = ExposureEvent(
+      key: key,
+      experimentId: experimentId,
+      variant: variant,
+      locale: currentLocale,
+      assignmentId: assignmentId
+    )
+  }
+
+  private func fireExposures(for key: String) {
+    guard !pendingExposures.isEmpty else { return }
+    let matches = pendingExposures.filter { $0.value.key == key }
+    guard !matches.isEmpty else { return }
+    for (dedupeKey, event) in matches {
+      pendingExposures.removeValue(forKey: dedupeKey)
+      firedExposures.insert(dedupeKey)
+      Task { @MainActor in self.onExposure?(event) }
+    }
+  }
+
+  private func computeExperimentsTrust(_ bundle: StringBundle) -> Bool {
+    guard bundle.strings.values.contains(where: { $0.experiment != nil }) else { return false }
+    return verifier.verifyExperiments(bundle)
   }
 
   private func loadLocalCandidates(for locale: String) {
@@ -293,10 +372,10 @@ public final class AirStrings {
     if let seedCandidate, seedCandidate.bundle.revision > highestKnownRevision {
       store.save(seedCandidate.data, projectId: configuration.projectId, environmentId: configuration.environmentId, locale: locale, etag: nil)
       cachedETags[locale] = nil
-      applyBundle(seedCandidate.bundle)
+      applyBundle(seedCandidate.bundle, experimentsTrusted: computeExperimentsTrust(seedCandidate.bundle))
       isReady = true
     } else if let cachedCandidate {
-      applyBundle(cachedCandidate.bundle)
+      applyBundle(cachedCandidate.bundle, experimentsTrusted: computeExperimentsTrust(cachedCandidate.bundle))
       cachedETags[locale] = cachedCandidate.etag
       isReady = true
     }
