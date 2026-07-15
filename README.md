@@ -158,6 +158,8 @@ Reading strings is unchanged — `airStrings["key"]` returns the assigned varian
 let title = airStrings["onboarding.welcome_title"]
 ```
 
+**Exposure fires once per session.** `onExposure` is deduped per `AirStrings` instance — a user re-entering the same screen won't fire it again; it resets on app relaunch (new instance) or when the assignment id changes. This is deliberate: exposure attributes a user to a variant (join to conversions by `assignmentId`). For per-render impression counts, track your own event in `onAppear`.
+
 Experiment assignments are Ed25519-verified like every bundle. A failed or absent experiment soft-fails to base values — it never blocks strings and never serves an unverified variant. Pass `nil` to `setAssignmentId(_:)` to clear the assignment and serve base values.
 
 ## Bundled fallback (offline-safe builds)

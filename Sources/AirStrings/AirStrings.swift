@@ -56,6 +56,12 @@ public final class AirStrings {
   @ObservationIgnored public var onStringsUpdated: ((_ locale: String, _ revision: Int) -> Void)?
 
   /// Called on read when an experiment variant is first exposed. Delivered asynchronously on the main actor.
+  ///
+  /// Fires at most once per unique `(key, experimentId, variant, assignmentId)` for the lifetime of this
+  /// instance — repeated reads, including a user re-entering the same screen, do not fire it again. It resets
+  /// only on a new `AirStrings` instance (app relaunch) or a changed assignment id. This is exposure (attribute
+  /// a user to a variant once per session — join to conversions on `assignmentId`), not impressions; for
+  /// per-render counts, emit your own event in `onAppear`.
   @ObservationIgnored public var onExposure: ((ExposureEvent) -> Void)?
 
   // MARK: - Public API
