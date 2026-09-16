@@ -255,9 +255,9 @@ public final class AirStrings {
   /// Discovers CDN base URL via bootstrap endpoint.
   /// If baseURL is already set (testing), skips the network call.
   /// Falls back to https://cdn.airstrings.com on any failure.
-  private func bootstrap() async -> URL {
+  private func bootstrap() async -> (cdn: URL, fallback: URL?) {
     if let baseURL = configuration.baseURL {
-      return baseURL
+      return (baseURL, nil)
     }
 
     let base = configuration.apiBaseURL.absoluteString.hasSuffix("/")
@@ -270,26 +270,32 @@ public final class AirStrings {
       guard let url = URL(string: response.cdnBaseURL) else {
         throw URLError(.badURL)
       }
-      return url
+      let fallback = response.fallbackBaseURL
+        .flatMap { URL(string: $0) }
+        .flatMap { $0.host() == nil ? nil : $0 }
+      return (url, fallback)
     } catch {
       logger.warning("Bootstrap failed, falling back to default CDN URL: \(error)")
-      return URL(string: "https://cdn.airstrings.com")!
+      return (URL(string: "https://cdn.airstrings.com")!, nil)
     }
   }
 
   /// Ensures fetcher is initialized, running bootstrap if needed.
   private func ensureFetcher() async {
     guard fetcher == nil else { return }
-    let baseURL = await bootstrap()
-    configuration.baseURL = baseURL
-    fetcher = BundleFetcher(baseURL: baseURL)
+    let (cdn, fallback) = await bootstrap()
+    guard fetcher == nil else { return }
+    configuration.baseURL = cdn
+    fetcher = BundleFetcher(baseURL: cdn, fallbackURL: fallback)
   }
 
   private struct BootstrapResponse: Decodable {
     let cdnBaseURL: String
+    let fallbackBaseURL: String?
 
     enum CodingKeys: String, CodingKey {
       case cdnBaseURL = "cdn_base_url"
+      case fallbackBaseURL = "fallback_base_url"
     }
   }
 
