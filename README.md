@@ -1,6 +1,14 @@
 # AirStrings iOS SDK
 
-Fetch, verify, and serve remotely-managed localized strings with Ed25519 signature verification and offline caching.
+Change your app's text without an App Store release.
+
+[AirStrings](https://airstrings.com) publishes your strings as Ed25519-signed bundles on a CDN. This SDK fetches them, verifies the signature on device, caches them for offline use, and serves them to SwiftUI. A bundle that fails verification is never shown.
+
+```swift
+.package(url: "https://github.com/symbionix-sl/airstrings-sdk-ios.git", from: "1.2.0")
+```
+
+Free plan available · [Docs](https://docs.airstrings.com) · [Sign up](https://app.airstrings.com)
 
 ## Requirements
 
