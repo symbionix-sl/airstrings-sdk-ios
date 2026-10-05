@@ -56,7 +56,7 @@ First stable release. The public API is now frozen under Semantic Versioning: no
 
 ### Added
 
-- Bundled fallback (seed): on startup and on `setLocale(_:)`, the SDK probes the app bundle for committed, signed bundles at `{locale}.json` under the `airstrings/bundles` seed directory and serves them on cold starts with no cache and no network. See the [bundled fallback contract](https://github.com/symbionix-sl/airstrings/blob/main/docs/contracts/bundled-fallback.md).
+- Bundled fallback (seed): on startup and on `setLocale(_:)`, the SDK probes the app bundle for committed, signed bundles at `{locale}.json` under the `airstrings/bundles` seed directory and serves them on cold starts with no cache and no network. See the [bundled fallback spec](https://docs.airstrings.com/docs/specs/bundled-fallback).
 - `AirStringsConfiguration.seedBundle` (default `.main`), `seedSubdirectory` (default `"airstrings/bundles"`), and `isSeedingEnabled` (default `true`) — additive configuration; existing integrations compile and run unchanged.
 - `AirStringsError.seedProjectMismatch` and `AirStringsError.seedLocaleMismatch` surfaced when a seed bundle fails the project ID or locale cross-check.
 

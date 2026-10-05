@@ -210,7 +210,7 @@ A missing seed directory or locale file is a silent no-op. A tampered, mismatche
 
 A fresh install serves the committed revision until the first successful fetch, so run `airstrings bundles pull` in CI or as a pre-release step to keep seeds current.
 
-Full specification: [bundled fallback contract](https://github.com/symbionix-sl/airstrings/blob/main/docs/contracts/bundled-fallback.md) (`docs/contracts/bundled-fallback.md` in the AirStrings platform repo).
+Full specification: [bundled fallback spec](https://docs.airstrings.com/docs/specs/bundled-fallback).
 
 ## Reactivity
 
